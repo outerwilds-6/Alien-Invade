@@ -1,3 +1,5 @@
+import json
+
 class Settings:
     """A class to store all settings for Alien Invasion."""
 
@@ -15,7 +17,7 @@ class Settings:
         self.bullet_width = 3
         self.bullet_height = 15
         self.bullet_color = (60, 60, 60)
-        self.bullets_allowed = 3
+        self.bullets_allowed = 10
 
         # Alien settings
         self.fleet_drop_speed = 10
@@ -24,6 +26,14 @@ class Settings:
         self.speedup_scale = 1.1
         # How quickly the alien point values increase
         self.score_scale = 1.5
+
+        #init volume
+        self.bgmvolume=0.7
+        self.sfxvolume=0.5
+
+        #init data path
+        self.sav_path='save'
+        self.file_name='data.json'
 
         self.initialize_dynamic_settings()
 

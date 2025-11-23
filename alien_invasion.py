@@ -1,4 +1,6 @@
 import sys
+import os
+import json
 from time import sleep
 
 import pygame
@@ -18,16 +20,34 @@ class AlienInvasion:
     def __init__(self):
         """Initialize the game, and create game resources."""
         pygame.init()
+        pygame.mixer.init(frequency=48000)
+
         self.clock = pygame.time.Clock()
         self.settings = Settings()
 
+        #init screen
         self.screen = pygame.display.set_mode(
             (self.settings.screen_width, self.settings.screen_height))
         pygame.display.set_caption("Alien Invasion")
+        
+        #init bgm and sfx
+        pygame.mixer.music.load('audio/bgm.ogg')
+        pygame.mixer.music.set_volume(self.settings.bgmvolume)
+        self.sfx_fire=pygame.mixer.Sound('audio/fire.ogg')
+        self.sfx_explosion=pygame.mixer.Sound('audio/explosion.ogg')
+        self.sfx_fire.set_volume(self.settings.sfxvolume)
+        self.sfx_explosion.set_volume(self.settings.sfxvolume)
+        
+        #init saves path
+        self.sav_path = self.settings.sav_path
+        self.file_name = self.settings.file_name
 
         # Create an instance to store game statistics,
         #   and create a scoreboard.
         self.stats = GameStats(self)
+
+        #try to load data before iniit scoreboard
+        self._load_highscore()
         self.sb = Scoreboard(self)
 
         self.ship = Ship(self)
@@ -53,12 +73,13 @@ class AlienInvasion:
                 self._update_aliens()
 
             self._update_screen()
-            self.clock.tick(120)
+            self.clock.tick(60)
 
     def _check_events(self):
         """Respond to keypresses and mouse events."""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                self._store_highscore()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 self._check_keydown_events(event)
@@ -93,6 +114,9 @@ class AlienInvasion:
             # Hide the mouse cursor.
             pygame.mouse.set_visible(False)
 
+            #start the bgm
+            pygame.mixer.music.play(-1)
+
     def _check_keydown_events(self, event):
         """Respond to keypresses."""
         if event.key == pygame.K_RIGHT:
@@ -115,6 +139,7 @@ class AlienInvasion:
         """Create a new bullet and add it to the bullets group."""
         if len(self.bullets) < self.settings.bullets_allowed:
             new_bullet = Bullet(self)
+            self.sfx_fire.play()
             self.bullets.add(new_bullet)
 
     def _update_bullets(self):
@@ -138,6 +163,7 @@ class AlienInvasion:
         if collisions:
             for aliens in collisions.values():
                 self.stats.score += self.settings.alien_points * len(aliens)
+                self.sfx_explosion.play()
             self.sb.prep_score()
             self.sb.check_high_score()
 
@@ -170,6 +196,7 @@ class AlienInvasion:
             sleep(0.5)
         else:
             self.game_active = False
+            pygame.mixer.music.stop()
             pygame.mouse.set_visible(True)
 
     def _update_aliens(self):
@@ -246,6 +273,26 @@ class AlienInvasion:
             self.play_button.draw_button()
 
         pygame.display.flip()
+
+    def _store_highscore(self):
+        """Store the highscore before exiting game."""
+        
+        #check whether the path exists, might not exist on first run
+        #create one if not exists
+        if not os.path.exists(self.sav_path):
+            os.makedirs(self.sav_path)
+
+        data = {"PreHigh" : self.sb.stats.high_score}
+        with open(os.path.join(self.sav_path,self.file_name),'w') as f:
+            json.dump(data,f,indent=4)
+
+    def _load_highscore(self):
+        if not os.path.exists(os.path.join(self.sav_path,self.file_name)):
+            pass
+        else:
+            with open(os.path.join(self.sav_path,self.file_name),'r') as f:
+                data=json.load(f)
+                self.stats.high_score = data['PreHigh']
 
 
 if __name__ == '__main__':
