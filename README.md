@@ -4,7 +4,7 @@
 
 ## 环境配置
 
-以下方法先使用 `conda` 安装虚拟环境，然后在虚拟环境中使用 `pip` 管理需要的包。
+先使用 `conda` 安装虚拟环境，然后在虚拟环境中使用 `pip` 管理需要的包。
 
 这些方法均已在 `Windows` 平台上试验过，如在其他操作系统上出现问题，还请开 `issue` 帮助我完善这个项目。
 
@@ -47,4 +47,4 @@ python main.py
 
 ## 参考项目
 
-+[Python Crash Course - Third Edition](https://github.com/ehmatthes/pcc_3e)
++ [Python Crash Course - Third Edition](https://github.com/ehmatthes/pcc_3e)
