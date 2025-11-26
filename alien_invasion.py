@@ -2,9 +2,7 @@ import sys
 import os
 import json
 from time import sleep
-
 import pygame
-
 from settings import Settings
 from game_stats import GameStats
 from scoreboard import Scoreboard
@@ -12,7 +10,6 @@ from button import Button
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
-
 
 class AlienInvasion:
     """Overall class to manage game assets and behavior."""
@@ -25,20 +22,23 @@ class AlienInvasion:
         self.clock = pygame.time.Clock()
         self.settings = Settings()
 
-        #init screen
+        # init screen
         self.screen = pygame.display.set_mode(
             (self.settings.screen_width, self.settings.screen_height))
         pygame.display.set_caption("Alien Invasion")
-        
-        #init bgm and sfx
+
+        # Load background image
+        self.bg_image = pygame.image.load('images/bg.bmp')
+
+        # init bgm and sfx
         pygame.mixer.music.load('audio/bgm.ogg')
         pygame.mixer.music.set_volume(self.settings.bgmvolume)
-        self.sfx_fire=pygame.mixer.Sound('audio/fire.ogg')
-        self.sfx_explosion=pygame.mixer.Sound('audio/explosion.ogg')
+        self.sfx_fire = pygame.mixer.Sound('audio/fire.ogg')
+        self.sfx_explosion = pygame.mixer.Sound('audio/explosion.ogg')
         self.sfx_fire.set_volume(self.settings.sfxvolume)
         self.sfx_explosion.set_volume(self.settings.sfxvolume)
-        
-        #init saves path
+
+        # init saves path
         self.sav_path = self.settings.sav_path
         self.file_name = self.settings.file_name
 
@@ -46,7 +46,7 @@ class AlienInvasion:
         #   and create a scoreboard.
         self.stats = GameStats(self)
 
-        #try to load data before iniit scoreboard
+        # try to load data before init scoreboard
         self._load_highscore()
         self.sb = Scoreboard(self)
 
@@ -54,6 +54,7 @@ class AlienInvasion:
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
 
+        # Create alien fleet
         self._create_fleet()
 
         # Start Alien Invasion in an inactive state.
@@ -61,6 +62,21 @@ class AlienInvasion:
 
         # Make the Play button.
         self.play_button = Button(self, "Play")
+
+        # Initialize energy bar and skill system
+        self.energy_bar = 0
+
+        # Explosion settings (single frame image)
+        self.explosion_image = pygame.image.load('images/explosion.bmp')
+        self.explosion_rect = self.explosion_image.get_rect()
+        self.explosion_active = False
+        self.explosion_scale = 1  # The scale factor for explosion
+        self.explosion_max_scale = 3  # Max scale for explosion
+        self.explosion_duration = 0  # Timer for explosion scaling
+
+        # Timer for aliens respawn after explosion
+        self.respawn_timer = 0
+        self.respawn_delay = 2  # Seconds
 
     def run_game(self):
         """Start the main loop for the game."""
@@ -70,7 +86,22 @@ class AlienInvasion:
             if self.game_active:
                 self.ship.update()
                 self._update_bullets()
-                self._update_aliens()
+
+                # Only update aliens if explosion is not active
+                if not self.explosion_active:
+                    self._update_aliens()
+
+                self._update_energy_bar()
+
+                # If explosion effect is active, update it
+                if self.explosion_active:
+                    self._update_explosion()
+
+                # Handle respawn of aliens after a delay
+                if self.respawn_timer > 0:
+                    self.respawn_timer -= 1
+                elif self.respawn_timer == 0 and not self.aliens:
+                    self._create_fleet()
 
             self._update_screen()
             self.clock.tick(60)
@@ -114,7 +145,7 @@ class AlienInvasion:
             # Hide the mouse cursor.
             pygame.mouse.set_visible(False)
 
-            #start the bgm
+            # start the bgm
             pygame.mixer.music.play(-1)
 
     def _check_keydown_events(self, event):
@@ -128,6 +159,8 @@ class AlienInvasion:
             sys.exit()
         elif event.key == pygame.K_SPACE:
             self._fire_bullet()
+        elif event.key == pygame.K_e and self.energy_bar == 100:
+            self._clear_screen()
 
     def _check_keyup_events(self, event):
         """Respond to key releases."""
@@ -145,7 +178,6 @@ class AlienInvasion:
 
     def _update_bullets(self):
         """Update position of bullets and get rid of old bullets."""
-        # Update bullet positions.
         self.bullets.update()
 
         # Get rid of bullets that have disappeared.
@@ -157,7 +189,6 @@ class AlienInvasion:
 
     def _check_bullet_alien_collisions(self):
         """Respond to bullet-alien collisions."""
-        # Remove any bullets and aliens that have collided.
         collisions = pygame.sprite.groupcollide(
                 self.bullets, self.aliens, True, True)
 
@@ -165,35 +196,25 @@ class AlienInvasion:
             for aliens in collisions.values():
                 self.stats.score += self.settings.alien_points * len(aliens)
                 self.sfx_explosion.play()
+                self.energy_bar += 10  # Add energy when killing aliens
             self.sb.prep_score()
             self.sb.check_high_score()
 
         if not self.aliens:
-            # Destroy existing bullets and create new fleet.
             self.bullets.empty()
-            self._create_fleet()
             self.settings.increase_speed()
-
-            # Increase level.
             self.stats.level += 1
             self.sb.prep_level()
 
     def _ship_hit(self):
         """Respond to the ship being hit by an alien."""
         if self.stats.ships_left > 0:
-            # Decrement ships_left, and update scoreboard.
             self.stats.ships_left -= 1
             self.sb.prep_ships()
-
-            # Get rid of any remaining bullets and aliens.
             self.bullets.empty()
             self.aliens.empty()
-
-            # Create a new fleet and center the ship.
             self._create_fleet()
             self.ship.center_ship()
-
-            # Pause.
             sleep(0.5)
         else:
             self.game_active = False
@@ -205,35 +226,27 @@ class AlienInvasion:
         self._check_fleet_edges()
         self.aliens.update()
 
-        # Look for alien-ship collisions.
         if pygame.sprite.spritecollideany(self.ship, self.aliens):
             self._ship_hit()
 
-        # Look for aliens hitting the bottom of the screen.
         self._check_aliens_bottom()
 
     def _check_aliens_bottom(self):
         """Check if any aliens have reached the bottom of the screen."""
         for alien in self.aliens.sprites():
             if alien.rect.bottom >= self.settings.screen_height:
-                # Treat this the same as if the ship got hit.
                 self._ship_hit()
                 break
 
     def _create_fleet(self):
         """Create the fleet of aliens."""
-        # Create an alien and keep adding aliens until there's no room left.
-        # Spacing between aliens is one alien width and one alien height.
         alien = Alien(self)
         alien_width, alien_height = alien.rect.size
-
         current_x, current_y = alien_width, alien_height
         while current_y < (self.settings.screen_height - 3 * alien_height):
             while current_x < (self.settings.screen_width - 2 * alien_width):
                 self._create_alien(current_x, current_y)
                 current_x += 2 * alien_width
-
-            # Finished a row; reset x value, and increment y value.
             current_x = alien_width
             current_y += 2 * alien_height
 
@@ -258,9 +271,41 @@ class AlienInvasion:
             alien.rect.y += self.settings.fleet_drop_speed
         self.settings.fleet_direction *= -1
 
+    def _update_energy_bar(self):
+        """Update the energy bar."""
+        if self.energy_bar > 100:
+            self.energy_bar = 100  # Cap the energy bar at 100
+
+    def _clear_screen(self):
+        """Clear all aliens when energy bar is full and 'E' is pressed."""
+        if self.aliens:
+            self.aliens.empty()
+            self.sfx_explosion.play()
+            self.explosion_active = True
+            self.explosion_scale = 1  # Reset explosion scale
+            self.explosion_duration = 0
+            self.energy_bar = 0  # Reset energy bar
+            self.respawn_timer = self.respawn_delay  # Delay respawn
+
+    def _update_explosion(self):
+        """Update the explosion effect (scale the explosion)."""
+        self.explosion_duration += 1
+        if self.explosion_duration <= 60:
+            # Gradually scale up the explosion
+            scale_factor = 1 + (self.explosion_duration / 60) * (self.explosion_max_scale - 1)
+            scaled_explosion = pygame.transform.scale(self.explosion_image,
+                                                      (int(self.explosion_rect.width * scale_factor),
+                                                       int(self.explosion_rect.height * scale_factor)))
+            self.screen.blit(scaled_explosion, 
+                             (self.settings.screen_width / 2 - scaled_explosion.get_width() / 2,
+                              self.settings.screen_height / 2 - scaled_explosion.get_height() / 2))
+        else:
+            self.explosion_active = False
+
     def _update_screen(self):
         """Update images on the screen, and flip to the new screen."""
-        self.screen.fill(self.settings.bg_color)
+        self.screen.blit(self.bg_image, (0, 0))  # Draw the background
+
         for bullet in self.bullets.sprites():
             bullet.draw_bullet()
         self.ship.blitme()
@@ -269,34 +314,41 @@ class AlienInvasion:
         # Draw the score information.
         self.sb.show_score()
 
+        # Draw energy bar
+        self._draw_energy_bar()
+
+        # Handle explosion
+        if self.explosion_active:
+            self._update_explosion()
+
         # Draw the play button if the game is inactive.
         if not self.game_active:
             self.play_button.draw_button()
 
         pygame.display.flip()
 
+    def _draw_energy_bar(self):
+        """Draw the energy bar at the top left."""
+        pygame.draw.rect(self.screen, (255, 0, 0), (10, 60, 200, 20))  # Red background for the bar
+        pygame.draw.rect(self.screen, (0, 255, 0), (10, 60, self.energy_bar * 2, 20))  # Green foreground
+
     def _store_highscore(self):
         """Store the highscore before exiting game."""
-        
-        #check whether the path exists, might not exist on first run
-        #create one if not exists
         if not os.path.exists(self.sav_path):
             os.makedirs(self.sav_path)
-
-        data = {"PreHigh" : self.sb.stats.high_score}
-        with open(os.path.join(self.sav_path,self.file_name),'w') as f:
-            json.dump(data,f,indent=4)
+        data = {"PreHigh": self.sb.stats.high_score}
+        with open(os.path.join(self.sav_path, self.file_name), 'w') as f:
+            json.dump(data, f, indent=4)
 
     def _load_highscore(self):
-        if not os.path.exists(os.path.join(self.sav_path,self.file_name)):
+        if not os.path.exists(os.path.join(self.sav_path, self.file_name)):
             pass
         else:
-            with open(os.path.join(self.sav_path,self.file_name),'r') as f:
-                data=json.load(f)
+            with open(os.path.join(self.sav_path, self.file_name), 'r') as f:
+                data = json.load(f)
                 self.stats.high_score = data['PreHigh']
 
 
 if __name__ == '__main__':
-    # Make a game instance, and run the game.
     ai = AlienInvasion()
     ai.run_game()
