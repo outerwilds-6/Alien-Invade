@@ -28,13 +28,13 @@ class AlienInvasion:
         pygame.display.set_caption("Alien Invasion")
 
         # Load background image
-        self.bg_image = pygame.image.load('images/bg.bmp')
+        self.bg_image = pygame.image.load(os.path.join(os.path.dirname(__file__),'images/bg.bmp'))
 
         # init bgm and sfx
-        pygame.mixer.music.load('audio/bgm.ogg')
+        pygame.mixer.music.load(os.path.join(os.path.dirname(__file__),'audio/bgm.ogg'))
         pygame.mixer.music.set_volume(self.settings.bgmvolume)
-        self.sfx_fire = pygame.mixer.Sound('audio/fire.ogg')
-        self.sfx_explosion = pygame.mixer.Sound('audio/explosion.ogg')
+        self.sfx_fire = pygame.mixer.Sound(os.path.join(os.path.dirname(__file__),'audio/fire.ogg'))
+        self.sfx_explosion = pygame.mixer.Sound(os.path.join(os.path.dirname(__file__),'audio/explosion.ogg'))
         self.sfx_fire.set_volume(self.settings.sfxvolume)
         self.sfx_explosion.set_volume(self.settings.sfxvolume)
 
@@ -67,7 +67,7 @@ class AlienInvasion:
         self.energy_bar = 0
 
         # Explosion settings (single frame image)
-        self.explosion_image = pygame.image.load('images/explosion.bmp')
+        self.explosion_image = pygame.image.load(os.path.join(os.path.dirname(__file__),'images/explosion.bmp'))
         self.explosion_rect = self.explosion_image.get_rect()
         self.explosion_active = False
         self.explosion_scale = 1  # The scale factor for explosion

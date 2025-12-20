@@ -208,3 +208,6 @@ __marimo__/
 
 #Game saves
 save/
+
+#Build files
+/main.*/
